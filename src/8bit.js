@@ -380,14 +380,15 @@
          * Grabs all the oscillator notes and plays them
          * It will use the total time played so far as an offset so you pause/play the music
          */
-        this.play = function() {
+        this.play = function(startingBeat) {
             playing = true;
             paused = false;
             // Starts calculator which keeps track of total play time
-            currentPlayTime = ac.currentTime;
+            var startOffset = (startingBeat || 0) * getDuration('quarter');
+            currentPlayTime = ac.currentTime - startOffset;
             totalPlayTimeCalculator();
 
-            var timeOffset = ac.currentTime - totalPlayTime;
+            var timeOffset = currentPlayTime - totalPlayTime;
             oscillators.forEach(function(osc) {
                 var o = osc.o,
                     startTime = osc.startTime + timeOffset,
