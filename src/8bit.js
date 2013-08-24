@@ -54,6 +54,7 @@
             noteGetsBeat,
             tempo,
             instruments = [],
+            nextInstrument = 1,
             oscillators = [],
             currentPlayTime,
             totalPlayTime = 0,
@@ -106,6 +107,8 @@
                         pitchType = waveforms[waveform],
                         notesBuffer = []
                     ;
+
+                    thid.id = null;
 
                     /**
                      * Set volume level for an instrument
@@ -232,11 +235,14 @@
                         notesBuffer.forEach(function(note) {
                             totalDuration += note.duration;
                         });
+
+                        this.id = nextInstrument;
                         instruments.push({
                             notes: notesBuffer,
                             totalDuration: totalDuration,
                             volumeLevel: volumeLevel
                         });
+                        nextInstrument++;
                     };
                 }
 
@@ -328,6 +334,28 @@
         this.createInstrument = function(waveform) {
             return new Instrument(waveform);
         };
+
+        /**
+         * Remove an instrument from the collection
+         *
+         * @param [Instrument] - instrument to be removed
+         */
+        this.removeInstrument = function(instrument) {
+            if(!instrument) {
+                return;
+            }
+            // Can only remove instrument if stopped
+            if (playing || paused) {
+                return;
+            }
+            // Find which instrument matches the passed one's id and remove it
+            for(var i = 0; i < instruments.length; i++) {
+                if(instruments[i].id === instrument.id) {
+                    instruments.splice(i, 1);
+                    break;
+                }
+            }
+        }
 
         /**
          * Stop playing all music and reset the Oscillators
