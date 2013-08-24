@@ -49,6 +49,7 @@
             muteGain = ac.createGain(),
             masterVolume = ac.createGain(),
             masterVolumeLevel = 1,
+            timeSignature,
             beatsPerBar,
             noteGetsBeat,
             tempo,
@@ -363,6 +364,7 @@
             }
 
             // Not used at the moment, but will be handy in the future.
+            timeSignature = [top, bottom];
             beatsPerBar = top;
             noteGetsBeat = signatureToNoteLengthRatio[bottom];
         };
@@ -384,7 +386,15 @@
             playing = true;
             paused = false;
             // Starts calculator which keeps track of total play time
-            var startOffset = (startingBeat || 0) * getDuration('quarter');
+            var noteLength;
+            if(timeSignature[1] == 8) {
+                noteLength = 'dottedQuarter';
+            } else if(timeSignature[1] == 2) {
+                noteLength = 'half';
+            } else {
+                noteLength = 'quarter';
+            }
+            var startOffset = (startingBeat || 0) * getDuration(noteLength);
             currentPlayTime = ac.currentTime - startOffset;
             totalPlayTimeCalculator();
 
