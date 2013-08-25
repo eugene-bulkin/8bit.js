@@ -142,7 +142,6 @@
                         });
 
                         notesBuffer.push({
-                            volume: volumeLevel,
                             pitch: pitch,
                             pitchType: pitchType,
                             duration: duration,
@@ -169,7 +168,6 @@
                         var duration = getDuration(note);
 
                         notesBuffer.push({
-                            volume: volumeLevel,
                             pitch: false,
                             pitchType: 0,
                             duration: duration,
@@ -234,7 +232,11 @@
                         notesBuffer.forEach(function(note) {
                             totalDuration += note.duration;
                         });
-                        instruments.push({notes: notesBuffer, totalDuration: totalDuration});
+                        instruments.push({
+                            notes: notesBuffer,
+                            totalDuration: totalDuration,
+                            volumeLevel: volumeLevel
+                        });
                     };
                 }
 
@@ -249,6 +251,73 @@
         // Setup master volume and connect to the context
         masterVolume.gain.value = 1;
         masterVolume.connect(ac.destination);
+
+        /**
+         * Use JSON to load in a song to be played
+         *
+         * @param json
+         */
+        this.load = function(json) {
+            if (! json) {
+                throw new Error('JSON is required for this method to work.');
+            }
+            // Need to have at least instruments and notes
+            if (typeof json['instruments'] === 'undefined') {
+                throw new Error('You must define at least one instrument');
+            }
+            if (typeof json['notes'] === 'undefined') {
+                throw new Error('You must define notes for each instrument');
+            }
+
+            // Shall we set a time signature?
+            if (typeof json['timeSignature'] !== 'undefined') {
+                self.setTimeSignature(json['timeSignature'][0], json['timeSignature'][1]);
+            }
+
+            // Maybe some tempo?
+            if (typeof json['tempo'] !== 'undefined') {
+                self.setTempo(json['tempo']);
+            }
+
+            // Lets create some instruments
+            var instruments = {};
+            for (var attr in json['instruments']) {
+                if (! json['instruments'].hasOwnProperty(attr)) {
+                    continue;
+                }
+
+                instruments[attr] = self.createInstrument(json['instruments'][attr]);
+            }
+
+            // Now lets add in each of the notes
+            for (var instrument in json['notes']) {
+                if (! json['notes'].hasOwnProperty(instrument)) {
+                    continue;
+                }
+                json['notes'][instrument].forEach(function(note) {
+                    // Use shorthand if it's a string
+                    if (typeof note === 'string') {
+                        note = note.split('|');
+                        if ('rest' === note[0]) {
+                            instruments[instrument].rest(note[1]);
+                        } else {
+                            instruments[instrument].note(note[0], note[1], note[2]);
+                        }
+                    // Otherwise use longhand
+                    } else {
+                        if ('rest' === note.type) {
+                            instruments[instrument].rest(note.rhythm);
+                        } else if ('note' === note.type) {
+                            instruments[instrument].note(note.pitch, note.rhythm, note.tie);
+                        }
+                    }
+                });
+                instruments[instrument].finish();
+            }
+
+            // Looks like we are done, lets press it.
+            self.end();
+        };
 
         /**
          * Create a new instrument
@@ -313,14 +382,21 @@
                 if (totalDuration < instruments[i].totalDuration) {
                     totalDuration = instruments[i].totalDuration;
                 }
-                var theseNotes = instruments[i].notes;
+
+                var theseNotes = instruments[i].notes,
+                    // Create volume for this instrument
+                    volume = ac.createGain();
+
+                // Connect volume gain to the Master Volume;
+                volume.connect(masterVolume);
+                // Set the volume for this note
+                volume.gain.value = instruments[i].volumeLevel;
+
                 for (var ii = 0; ii < theseNotes.length; ii++) {
                     var pitch = theseNotes[ii].pitch,
                         startTime = theseNotes[ii].startTime,
                         stopTime = theseNotes[ii].stopTime,
-                        pitchType = theseNotes[ii].pitchType,
-                        noteVolume = theseNotes[ii].volume
-                    ;
+                        pitchType = theseNotes[ii].pitchType;
 
                     // No pitch, then it's a rest and we don't need an oscillator
                     if (! pitch) {
@@ -329,13 +405,8 @@
 
                     pitch.split(',').forEach(function(p) {
                         p = p.trim();
-                        var o = ac.createOscillator(),
-                            volume = ac.createGain();
+                        var o = ac.createOscillator();
 
-                        // Connect volume gain to the Master Volume;
-                        volume.connect(masterVolume);
-                        // Set the volume for this note
-                        volume.gain.value = noteVolume;
                         // Connect note to volume
                         o.connect(volume);
                         // Set pitch type
